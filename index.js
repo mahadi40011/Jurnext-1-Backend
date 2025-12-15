@@ -13,6 +13,10 @@ admin.initializeApp({
 });
 
 const app = express();
+
+// ✅ app-level settings (FIRST)
+app.set("trust proxy", true);
+
 // middleware
 app.use(
   cors({
@@ -50,8 +54,33 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 
 async function run() {
   try {
-    const db = client.db('Jurnext-1')
-    const usersCollection = db.collection('Users')
+    const db = client.db("Jurnext-1");
+    const usersCollection = db.collection("Users");
+
+    // save or update user in database
+    app.post("/user", async (req, res) => {
+      const userData = req.body;
+      const ip = req.clientIP;
+
+      userData.created_at = new Date().toISOString();
+      userData.last_loggedIn = new Date().toISOString();
+      userData.role = "customer";
+
+      const query = { email: userData.email };
+      const alreadyExist = await usersCollection.findOne(query);
+
+      if (alreadyExist) {
+        const result = await usersCollection.updateOne(query, {
+          $set: {
+            last_loggedIn: new Date().toISOString(),
+          },
+        });
+        return res.send(result);
+      }
+
+      const result = await usersCollection.insertOne(userData);
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
