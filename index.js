@@ -14,9 +14,6 @@ admin.initializeApp({
 
 const app = express();
 
-// ✅ app-level settings (FIRST)
-app.set("trust proxy", true);
-
 // middleware
 app.use(
   cors({
@@ -57,11 +54,11 @@ async function run() {
     const db = client.db("Jurnext-1");
     const usersCollection = db.collection("Users");
     const ticketsCollection = db.collection("Tickets");
+    const bookedTicketsCollection = db.collection("Booked_Tickets");
 
     // save or update user in database
     app.post("/user", async (req, res) => {
       const userData = req.body;
-      const ip = req.clientIP;
 
       userData.created_at = new Date().toISOString();
       userData.last_loggedIn = new Date().toISOString();
@@ -102,6 +99,13 @@ async function run() {
       const { id } = req.params;
       const result = await ticketsCollection.findOne({ _id: new ObjectId(id) });
       res.send(result);
+    });
+
+    //send 1 data to database [common access]
+    app.post("/book-ticket", async (req, res) => {
+      const ticketBookingData = req.body;
+      const result = await bookedTicketsCollection.insertOne(ticketBookingData)
+      res.send(result)
     });
 
     // Send a ping to confirm a successful connection
