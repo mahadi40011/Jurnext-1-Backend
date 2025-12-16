@@ -56,6 +56,7 @@ async function run() {
   try {
     const db = client.db("Jurnext-1");
     const usersCollection = db.collection("Users");
+    const ticketsCollection = db.collection("Tickets")
 
     // save or update user in database
     app.post("/user", async (req, res) => {
@@ -79,6 +80,14 @@ async function run() {
       }
 
       const result = await usersCollection.insertOne(userData);
+      res.send(result);
+    });
+
+    //send 1 data to database [Seller Only]
+    app.post("/tickets", async (req, res) => {
+      const plantData = req.body;
+      console.log(plantData);
+      const result = await ticketsCollection.insertOne(plantData);
       res.send(result);
     });
 
