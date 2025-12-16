@@ -56,7 +56,7 @@ async function run() {
   try {
     const db = client.db("Jurnext-1");
     const usersCollection = db.collection("Users");
-    const ticketsCollection = db.collection("Tickets")
+    const ticketsCollection = db.collection("Tickets");
 
     // save or update user in database
     app.post("/user", async (req, res) => {
@@ -88,6 +88,12 @@ async function run() {
       const plantData = req.body;
       console.log(plantData);
       const result = await ticketsCollection.insertOne(plantData);
+      res.send(result);
+    });
+
+    //get all ticket Data from Database [common access]
+    app.get("/tickets", async (req, res) => {
+      const result = await ticketsCollection.find().toArray();
       res.send(result);
     });
 
