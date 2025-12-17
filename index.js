@@ -107,6 +107,21 @@ async function run() {
       }
     });
 
+    //make a vendor fraud
+    app.patch("/users/mark-fraud/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            fraud: true,
+          },
+        }
+      );
+      res.send(result);
+    });
+
     //send 1 data to database [Seller Only]
     app.post("/tickets", async (req, res) => {
       const plantData = req.body;
