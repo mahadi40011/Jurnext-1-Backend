@@ -160,7 +160,45 @@ async function run() {
     //get all added ticket of a vendor, verify vendor using email [vendor only]
     app.get("/added-tickets", verifyJWT, async (req, res) => {
       const email = req.tokenEmail;
-      const result = await ticketsCollection.find({ "vendor.email": email }).toArray();
+      const result = await ticketsCollection
+        .find({ "vendor.email": email })
+        .toArray();
+      res.send(result);
+    });
+
+    //get all booking request data for a verified vendor [vendor only]
+    app.get("/requested-booking", verifyJWT, async (req, res) => {
+      const email = req.tokenEmail;
+      const result = await bookedTicketsCollection
+        .aggregate([
+          { $match: { "vendor.email": email } },
+          {
+            $addFields: {
+              convertedID: { $toObjectId: "$ticketID" },
+            },
+          },
+          {
+            $lookup: {
+              from: "Tickets",
+              localField: "convertedID",
+              foreignField: "_id",
+              as: "joinedTicket",
+            },
+          },
+          { $unwind: "$joinedTicket" },
+          {
+            $project: {
+              _id: 1,
+              customer: 1,
+              vendor: 1,
+              status: 1,
+              quantity: 1,
+              ticketPrice: "$joinedTicket.price",
+              ticketTitle: "$joinedTicket.title",
+            },
+          },
+        ])
+        .toArray();
       res.send(result);
     });
 
