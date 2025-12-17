@@ -87,8 +87,14 @@ async function run() {
       res.send(result);
     });
 
-    //get all ticket Data from Database [common access]
-    app.get("/tickets", async (req, res) => {
+    //get all approved ticket Data from Database [common access]
+    app.get("/approved-tickets", async (req, res) => {
+      const result = await ticketsCollection.find({status: "approved"}).toArray();
+      res.send(result);
+    });
+
+    //get all ticket Data from Database [Admin only]
+    app.get("/tickets",verifyJWT, async (req, res) => {
       const result = await ticketsCollection.find().toArray();
       res.send(result);
     });
