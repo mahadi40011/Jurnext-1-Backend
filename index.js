@@ -107,7 +107,7 @@ async function run() {
       }
     });
 
-    //make a vendor fraud
+    //make a vendor fraud [admin only]
     app.patch("/users/mark-fraud/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
 
@@ -116,6 +116,21 @@ async function run() {
         {
           $set: {
             fraud: true,
+          },
+        }
+      );
+      res.send(result);
+    });
+
+    //remove fraud field to the vendor [admin only]
+    app.patch("/users/unmark-fraud/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $unset: {
+            fraud: "",
           },
         }
       );
