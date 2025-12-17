@@ -93,6 +93,34 @@ async function run() {
       res.send(result);
     });
 
+    // update the ticket status by Admin [Admin only]
+    app.patch("/tickets/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const { status } = req.body;
+
+      try {
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status: status,
+          },
+        };
+
+        const result = await ticketsCollection.updateOne(
+          query,
+          updateDoc
+        );
+
+        if (result.modifiedCount > 0) {
+          res.send(result);
+        } else {
+          res.status(404).send({ message: "Status update failed" });
+        }
+      } catch (error) {
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
     //get 1 ticket Data from Database [common access]
     app.get("/tickets/:id", async (req, res) => {
       const { id } = req.params;
@@ -223,9 +251,7 @@ async function run() {
         if (result.modifiedCount > 0) {
           res.send(result);
         } else {
-          res
-            .status(404)
-            .send({ message: "Status update failed" });
+          res.status(404).send({ message: "Status update failed" });
         }
       } catch (error) {
         res.status(500).send({ message: "Internal Server Error" });
