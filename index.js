@@ -202,6 +202,36 @@ async function run() {
       res.send(result);
     });
 
+    // update the booked ticket status by a verified vendor [vendor only]
+    app.patch("/booking-status/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const { status } = req.body;
+
+      try {
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status: status,
+          },
+        };
+
+        const result = await bookedTicketsCollection.updateOne(
+          query,
+          updateDoc
+        );
+
+        if (result.modifiedCount > 0) {
+          res.send(result);
+        } else {
+          res
+            .status(404)
+            .send({ message: "Status update failed" });
+        }
+      } catch (error) {
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
