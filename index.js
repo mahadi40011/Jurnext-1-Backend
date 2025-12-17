@@ -82,9 +82,30 @@ async function run() {
 
     //get all users from database [Admin only]
     app.get("/users", verifyJWT, async (req, res) => {
-      const result = await usersCollection.find().toArray()
-      res.send(result)
-    })
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
+    //update user role [admin only]
+    app.patch("/update-role", verifyJWT, async (req, res) => {
+      try {
+        const { id, role } = req.body;
+
+        if (!id) {
+          return res.status(400).send({ message: "User ID is required" });
+        }
+
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { role: role } };
+
+        const result = await usersCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      } catch (err) {
+        res
+          .status(500)
+          .send({ message: "Failed to update role", error: err.message });
+      }
+    });
 
     //send 1 data to database [Seller Only]
     app.post("/tickets", async (req, res) => {
@@ -95,12 +116,14 @@ async function run() {
 
     //get all approved ticket Data from Database [common access]
     app.get("/approved-tickets", async (req, res) => {
-      const result = await ticketsCollection.find({status: "approved"}).toArray();
+      const result = await ticketsCollection
+        .find({ status: "approved" })
+        .toArray();
       res.send(result);
     });
 
     //get all ticket Data from Database [Admin only]
-    app.get("/tickets",verifyJWT, async (req, res) => {
+    app.get("/tickets", verifyJWT, async (req, res) => {
       const result = await ticketsCollection.find().toArray();
       res.send(result);
     });
@@ -118,10 +141,7 @@ async function run() {
           },
         };
 
-        const result = await ticketsCollection.updateOne(
-          query,
-          updateDoc
-        );
+        const result = await ticketsCollection.updateOne(query, updateDoc);
 
         if (result.modifiedCount > 0) {
           res.send(result);
