@@ -80,6 +80,12 @@ async function run() {
       res.send(result);
     });
 
+    //get all users from database [Admin only]
+    app.get("/users", verifyJWT, async (req, res) => {
+      const result = await usersCollection.find().toArray()
+      res.send(result)
+    })
+
     //send 1 data to database [Seller Only]
     app.post("/tickets", async (req, res) => {
       const plantData = req.body;
