@@ -157,6 +157,13 @@ async function run() {
       }
     });
 
+    //get all added ticket of a vendor, verify vendor using email [vendor only]
+    app.get("/added-tickets", verifyJWT, async (req, res) => {
+      const email = req.tokenEmail;
+      const result = await ticketsCollection.find({ "vendor.email": email }).toArray();
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
