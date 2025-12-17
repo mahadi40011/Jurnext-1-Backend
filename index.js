@@ -83,7 +83,6 @@ async function run() {
     //send 1 data to database [Seller Only]
     app.post("/tickets", async (req, res) => {
       const plantData = req.body;
-      console.log(plantData);
       const result = await ticketsCollection.insertOne(plantData);
       res.send(result);
     });
@@ -104,8 +103,58 @@ async function run() {
     //send 1 data to database [common access]
     app.post("/book-ticket", async (req, res) => {
       const ticketBookingData = req.body;
-      const result = await bookedTicketsCollection.insertOne(ticketBookingData)
-      res.send(result)
+      const result = await bookedTicketsCollection.insertOne(ticketBookingData);
+      res.send(result);
+    });
+
+    //get all booked ticket data from database [customer only]
+    app.get("/booked-tickets", verifyJWT, async (req, res) => {
+      const email = req.tokenEmail;
+
+      try {
+        const result = await bookedTicketsCollection
+          .aggregate([
+            {
+              $match: { "customer.email": email },
+            },
+            {
+              $addFields: {
+                convertedTicketID: { $toObjectId: "$ticketID" },
+              },
+            },
+            {
+              $lookup: {
+                from: "Tickets",
+                localField: "convertedTicketID",
+                foreignField: "_id",
+                as: "ticketDetails",
+              },
+            },
+            {
+              $unwind: "$ticketDetails",
+            },
+            {
+              $project: {
+                convertedTicketID: 0,
+                ticketID: 0,
+                customer: 0,
+                "ticketDetails.perks": 0,
+                "ticketDetails.transport": 0,
+                "ticketDetails.quantity": 0,
+                "ticketDetails.vendor": 0,
+                "ticketDetails._id": 0,
+              },
+            },
+          ])
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.error("Aggregation Error:", error);
+        res
+          .status(500)
+          .send({ message: "Failed to fetch booked tickets with details." });
+      }
     });
 
     // Send a ping to confirm a successful connection
