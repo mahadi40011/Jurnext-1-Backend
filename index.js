@@ -107,6 +107,12 @@ async function run() {
       }
     });
 
+    //get a user role [internal process]
+    app.get("/user/role", verifyJWT, async (req, res) => {
+      const result = await usersCollection.findOne({ email: req.tokenEmail });
+      res.send({ role: result.role });
+    });
+
     //make a vendor fraud [admin only]
     app.patch("/users/mark-fraud/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
