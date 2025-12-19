@@ -137,6 +137,30 @@ async function run() {
       res.send(result);
     });
 
+    //Update advertise status and filter <= 6 tickets for advertise [admin only]
+    app.patch("/advertise-ticket/:id", verifyJWT, async (req, res) => {
+      const { id } = req.params;
+      const { advertise } = req.body;
+
+      const advertisedCount = await ticketsCollection.countDocuments({
+        advertise: true,
+      });
+
+      if (advertisedCount >= 6) {
+        return res.status(400).send({
+          message: "Limit reached! You cannot advertise more than 6 tickets.",
+        });
+      }
+
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: { advertise },
+      };
+
+      const result = await ticketsCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
     //send 1 data to database [Seller Only]
     app.post("/tickets", async (req, res) => {
       const plantData = req.body;
