@@ -167,6 +167,12 @@ async function run() {
       res.send(result);
     });
 
+    //get advertise tickets from database [common access]
+    app.get("/advertise-tickets", async (req, res) => {
+      const result = await ticketsCollection.find({ advertise: true }).toArray()
+      res.send(result)
+    })
+
     //send 1 data to database [Seller Only]
     app.post("/tickets", async (req, res) => {
       const plantData = req.body;
