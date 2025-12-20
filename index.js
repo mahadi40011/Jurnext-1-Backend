@@ -374,7 +374,7 @@ async function run() {
           customer_email: paymentInfo?.customer?.email,
         },
         success_url: `${process.env.CLIENT_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.CLIENT_DOMAIN}/plant/${paymentInfo?.ticketID}`,
+        cancel_url: `${process.env.CLIENT_DOMAIN}/dashboard/booked-tickets`,
       });
       res.send({ url: session.url });
     });
