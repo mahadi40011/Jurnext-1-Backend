@@ -169,9 +169,21 @@ async function run() {
 
     //get advertise tickets from database [common access]
     app.get("/advertise-tickets", async (req, res) => {
-      const result = await ticketsCollection.find({ advertise: true }).toArray()
-      res.send(result)
-    })
+      const result = await ticketsCollection
+        .find({ advertise: true })
+        .toArray();
+      res.send(result);
+    });
+
+    //get latest tickets for home page
+    app.get("/latest-tickets", async (req, res) => {
+      const result = await ticketsCollection
+        .find()
+        .sort({ _id: -1 })
+        .limit(8)
+        .toArray();
+      res.send(result);
+    });
 
     //send 1 data to database [Seller Only]
     app.post("/tickets", async (req, res) => {
