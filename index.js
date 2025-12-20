@@ -1,4 +1,5 @@
 require("dotenv").config();
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -27,12 +28,10 @@ app.use(express.json());
 // jwt middlewares
 const verifyJWT = async (req, res, next) => {
   const token = req?.headers?.authorization?.split(" ")[1];
-  console.log(token);
   if (!token) return res.status(401).send({ message: "Unauthorized Access!" });
   try {
     const decoded = await admin.auth().verifyIdToken(token);
     req.tokenEmail = decoded.email;
-    console.log(decoded);
     next();
   } catch (err) {
     console.log(err);
@@ -256,10 +255,9 @@ async function run() {
             {
               $project: {
                 convertedTicketID: 0,
-                ticketID: 0,
+                vendor: 0,
                 customer: 0,
                 "ticketDetails.perks": 0,
-                "ticketDetails.transport": 0,
                 "ticketDetails.quantity": 0,
                 "ticketDetails.vendor": 0,
                 "ticketDetails._id": 0,
@@ -348,6 +346,37 @@ async function run() {
       } catch (error) {
         res.status(500).send({ message: "Internal Server Error" });
       }
+    });
+
+    //Payment endPint
+    app.post("/create-checkout-session", async (req, res) => {
+      const paymentInfo = req.body;
+
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "bdt",
+              product_data: {
+                name: paymentInfo?.title,
+                images: [paymentInfo?.image],
+              },
+              unit_amount: paymentInfo?.price * 100,
+            },
+            quantity: paymentInfo?.quantity,
+          },
+        ],
+        customer_email: paymentInfo?.customer?.email,
+        mode: "payment",
+        metadata: {
+          ticketID: paymentInfo?.ticketID,
+          customer_name: paymentInfo?.customer?.name,
+          customer_email: paymentInfo?.customer?.email,
+        },
+        success_url: `${process.env.CLIENT_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.CLIENT_DOMAIN}/plant/${paymentInfo?.ticketID}`,
+      });
+      res.send({ url: session.url });
     });
 
     // Send a ping to confirm a successful connection
