@@ -295,24 +295,24 @@ async function run() {
     });
 
     //get all payment data from database [customer only]
-  app.get("/transactions", verifyJWT, async (req, res) => {
-    try {
-      const email = req.tokenEmail;
-      const result = await paymentsCollection
-        .find({ "customer.email": email })
-        .project({
-          transactionId: 1,
-          title: 1,
-          amount: 1,
-          date: 1,
-        })
-        .toArray();
+    app.get("/transactions", verifyJWT, async (req, res) => {
+      try {
+        const email = req.tokenEmail;
+        const result = await paymentsCollection
+          .find({ "customer.email": email })
+          .project({
+            transactionId: 1,
+            title: 1,
+            amount: 1,
+            date: 1,
+          })
+          .toArray();
 
-      res.send(result);
-    } catch (error) {
-      res.status(500).send({ message: "Error fetching transactions", error });
-    }
-  });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching transactions", error });
+      }
+    });
 
     //get all added ticket of a vendor, verify vendor using email [vendor only]
     app.get("/added-tickets", verifyJWT, async (req, res) => {
@@ -384,6 +384,46 @@ async function run() {
         }
       } catch (error) {
         res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
+    //get all Revenue data for a vendor [vendor only]
+    app.get("/total-revenue", verifyJWT, async (req, res) => {
+      try {
+        const email = req.tokenEmail;
+
+        const paymentStats = await paymentsCollection
+          .aggregate([
+            {
+              $match: { "vendor.email": email },
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalSold: { $sum: "$quantity" },
+              },
+            },
+          ])
+          .toArray();
+
+        const stats =
+          paymentStats.length > 0
+            ? paymentStats[0]
+            : { totalRevenue: 0, totalSold: 0 };
+
+        const totalTicketsCount = await ticketsCollection.countDocuments({
+          "vendor.email": email,
+        });
+
+        res.send({
+          revenue: stats.totalRevenue,
+          sold: stats.totalSold,
+          tickets: totalTicketsCount,
+        });
+      } catch (error) {
+        console.error("Revenue Error:", error);
+        res.status(500).send({ message: "Internal Server Error", error });
       }
     });
 
