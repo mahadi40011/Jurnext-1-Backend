@@ -424,10 +424,10 @@ async function run() {
             name: session.metadata.customer_name,
           },
           vendor: ticket.vendor,
-          image: ticket.image,
           title: ticket.title,
           quantity: soldQuantity,
-          price: session.amount_total / 100,
+          amount: session.amount_total / 100,
+          time: new Date().toISOString(),
         };
 
         const result = await paymentsCollection.insertOne(paymentInfo);
