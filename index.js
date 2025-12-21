@@ -294,6 +294,26 @@ async function run() {
       }
     });
 
+    //get all payment data from database [customer only]
+  app.get("/transactions", verifyJWT, async (req, res) => {
+    try {
+      const email = req.tokenEmail;
+      const result = await paymentsCollection
+        .find({ "customer.email": email })
+        .project({
+          transactionId: 1,
+          title: 1,
+          amount: 1,
+          date: 1,
+        })
+        .toArray();
+
+      res.send(result);
+    } catch (error) {
+      res.status(500).send({ message: "Error fetching transactions", error });
+    }
+  });
+
     //get all added ticket of a vendor, verify vendor using email [vendor only]
     app.get("/added-tickets", verifyJWT, async (req, res) => {
       const email = req.tokenEmail;
@@ -427,7 +447,7 @@ async function run() {
           title: ticket.title,
           quantity: soldQuantity,
           amount: session.amount_total / 100,
-          time: new Date().toISOString(),
+          date: new Date().toISOString(),
         };
 
         const result = await paymentsCollection.insertOne(paymentInfo);
