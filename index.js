@@ -56,6 +56,32 @@ async function run() {
     const bookedTicketsCollection = db.collection("Booked_Tickets");
     const paymentsCollection = db.collection("Payments");
 
+    // Dynamic Verify Role Middleware
+    const verifyRole = (requiredRole) => {
+      return async (req, res, next) => {
+        try {
+          const email = req.tokenEmail;
+          const user = await usersCollection.findOne({ email });
+
+          if (!user) {
+            return res.status(404).send({ message: "User not found" });
+          }
+
+          if (user?.role !== requiredRole) {
+            return res.status(403).send({
+              message: `${
+                requiredRole.charAt(0).toUpperCase() + requiredRole.slice(1)
+              } Access Only, You are ${user?.role}`,
+            });
+          }
+
+          next();
+        } catch (error) {
+          res.status(500).send({ message: "Internal Server Error", error });
+        }
+      };
+    };
+
     // save or update user in database
     app.post("/user", async (req, res) => {
       const userData = req.body;
@@ -81,91 +107,111 @@ async function run() {
     });
 
     //get all users from database [Admin only]
-    app.get("/users", verifyJWT, async (req, res) => {
+    app.get("/users", verifyJWT, verifyRole("admin"), async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
 
     //update user role [admin only]
-    app.patch("/update-role", verifyJWT, async (req, res) => {
-      try {
-        const { id, role } = req.body;
+    app.patch(
+      "/update-role",
+      verifyJWT,
+      verifyRole("admin"),
+      async (req, res) => {
+        try {
+          const { id, role } = req.body;
 
-        if (!id) {
-          return res.status(400).send({ message: "User ID is required" });
+          if (!id) {
+            return res.status(400).send({ message: "User ID is required" });
+          }
+
+          const filter = { _id: new ObjectId(id) };
+          const updateDoc = { $set: { role: role } };
+
+          const result = await usersCollection.updateOne(filter, updateDoc);
+          res.send(result);
+        } catch (err) {
+          res
+            .status(500)
+            .send({ message: "Failed to update role", error: err.message });
         }
-
-        const filter = { _id: new ObjectId(id) };
-        const updateDoc = { $set: { role: role } };
-
-        const result = await usersCollection.updateOne(filter, updateDoc);
-        res.send(result);
-      } catch (err) {
-        res
-          .status(500)
-          .send({ message: "Failed to update role", error: err.message });
       }
-    });
+    );
 
-    //get a user role [internal process]
+    //get a user role [common access]
     app.get("/user/role", verifyJWT, async (req, res) => {
       const result = await usersCollection.findOne({ email: req.tokenEmail });
       res.send({ role: result.role });
     });
 
     //make a vendor fraud [admin only]
-    app.patch("/users/mark-fraud/:id", verifyJWT, async (req, res) => {
-      const id = req.params.id;
+    app.patch(
+      "/users/mark-fraud/:id",
+      verifyJWT,
+      verifyRole("admin"),
+      async (req, res) => {
+        const id = req.params.id;
 
-      const result = await usersCollection.updateOne(
-        { _id: new ObjectId(id) },
-        {
-          $set: {
-            fraud: true,
-          },
-        }
-      );
-      res.send(result);
-    });
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              fraud: true,
+            },
+          }
+        );
+        res.send(result);
+      }
+    );
 
     //remove fraud field to the vendor [admin only]
-    app.patch("/users/unmark-fraud/:id", verifyJWT, async (req, res) => {
-      const id = req.params.id;
+    app.patch(
+      "/users/unmark-fraud/:id",
+      verifyJWT,
+      verifyRole("admin"),
+      async (req, res) => {
+        const id = req.params.id;
 
-      const result = await usersCollection.updateOne(
-        { _id: new ObjectId(id) },
-        {
-          $unset: {
-            fraud: "",
-          },
-        }
-      );
-      res.send(result);
-    });
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $unset: {
+              fraud: "",
+            },
+          }
+        );
+        res.send(result);
+      }
+    );
 
     //Update advertise status and filter <= 6 tickets for advertise [admin only]
-    app.patch("/advertise-ticket/:id", verifyJWT, async (req, res) => {
-      const { id } = req.params;
-      const { advertise } = req.body;
+    app.patch(
+      "/advertise-ticket/:id",
+      verifyJWT,
+      verifyRole("admin"),
+      async (req, res) => {
+        const { id } = req.params;
+        const { advertise } = req.body;
 
-      const advertisedCount = await ticketsCollection.countDocuments({
-        advertise: true,
-      });
-
-      if (advertisedCount >= 6) {
-        return res.status(400).send({
-          message: "Limit reached! You cannot advertise more than 6 tickets.",
+        const advertisedCount = await ticketsCollection.countDocuments({
+          advertise: true,
         });
+
+        if (advertisedCount >= 6) {
+          return res.status(400).send({
+            message: "Limit reached! You cannot advertise more than 6 tickets.",
+          });
+        }
+
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: { advertise },
+        };
+
+        const result = await ticketsCollection.updateOne(filter, updateDoc);
+        res.send(result);
       }
-
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: { advertise },
-      };
-
-      const result = await ticketsCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
+    );
 
     //get advertise tickets from database [common access]
     app.get("/advertise-tickets", async (req, res) => {
@@ -185,11 +231,11 @@ async function run() {
       res.send(result);
     });
 
-    //send 1 data to database [Seller Only]
-    app.post("/tickets", async (req, res) => {
+    //send 1 data to database [vendor Only]
+    app.post("/tickets", verifyJWT, verifyRole("vendor"), async (req, res) => {
       try {
         const ticketData = req.body;
-        const email = ticketData.vendor?.email;
+        const email = req.tokenEmail;
 
         const user = await usersCollection.findOne({ email });
 
@@ -221,35 +267,40 @@ async function run() {
     });
 
     //get all ticket Data from Database [Admin only]
-    app.get("/tickets", verifyJWT, async (req, res) => {
+    app.get("/tickets", verifyJWT, verifyRole("admin"), async (req, res) => {
       const result = await ticketsCollection.find().toArray();
       res.send(result);
     });
 
     // update the ticket status by Admin [Admin only]
-    app.patch("/tickets/:id", verifyJWT, async (req, res) => {
-      const id = req.params.id;
-      const { status } = req.body;
+    app.patch(
+      "/tickets/:id",
+      verifyJWT,
+      verifyRole("admin"),
+      async (req, res) => {
+        const id = req.params.id;
+        const { status } = req.body;
 
-      try {
-        const query = { _id: new ObjectId(id) };
-        const updateDoc = {
-          $set: {
-            status: status,
-          },
-        };
+        try {
+          const query = { _id: new ObjectId(id) };
+          const updateDoc = {
+            $set: {
+              status: status,
+            },
+          };
 
-        const result = await ticketsCollection.updateOne(query, updateDoc);
+          const result = await ticketsCollection.updateOne(query, updateDoc);
 
-        if (result.modifiedCount > 0) {
-          res.send(result);
-        } else {
-          res.status(404).send({ message: "Status update failed" });
+          if (result.modifiedCount > 0) {
+            res.send(result);
+          } else {
+            res.status(404).send({ message: "Status update failed" });
+          }
+        } catch (error) {
+          res.status(500).send({ message: "Internal Server Error" });
         }
-      } catch (error) {
-        res.status(500).send({ message: "Internal Server Error" });
       }
-    });
+    );
 
     //get 1 ticket Data from Database [common access]
     app.get("/tickets/:id", async (req, res) => {
@@ -266,243 +317,285 @@ async function run() {
     });
 
     //get all booked ticket data from database [customer only]
-    app.get("/booked-tickets", verifyJWT, async (req, res) => {
-      const email = req.tokenEmail;
+    app.get(
+      "/booked-tickets",
+      verifyJWT,
+      verifyRole("customer"),
+      async (req, res) => {
+        const email = req.tokenEmail;
 
-      try {
+        try {
+          const result = await bookedTicketsCollection
+            .aggregate([
+              {
+                $match: { "customer.email": email },
+              },
+              {
+                $addFields: {
+                  convertedTicketID: { $toObjectId: "$ticketID" },
+                },
+              },
+              {
+                $lookup: {
+                  from: "Tickets",
+                  localField: "convertedTicketID",
+                  foreignField: "_id",
+                  as: "ticketDetails",
+                },
+              },
+              {
+                $unwind: "$ticketDetails",
+              },
+              {
+                $project: {
+                  convertedTicketID: 0,
+                  vendor: 0,
+                  customer: 0,
+                  "ticketDetails.perks": 0,
+                  "ticketDetails.quantity": 0,
+                  "ticketDetails.vendor": 0,
+                  "ticketDetails._id": 0,
+                },
+              },
+            ])
+            .toArray();
+
+          res.send(result);
+        } catch (error) {
+          console.error("Aggregation Error:", error);
+          res
+            .status(500)
+            .send({ message: "Failed to fetch booked tickets with details." });
+        }
+      }
+    );
+
+    //get all payment data from database [customer only]
+    app.get(
+      "/transactions",
+      verifyJWT,
+      verifyRole("customer"),
+      async (req, res) => {
+        try {
+          const email = req.tokenEmail;
+          const result = await paymentsCollection
+            .find({ "customer.email": email })
+            .project({
+              transactionId: 1,
+              title: 1,
+              amount: 1,
+              date: 1,
+            })
+            .toArray();
+
+          res.send(result);
+        } catch (error) {
+          res
+            .status(500)
+            .send({ message: "Error fetching transactions", error });
+        }
+      }
+    );
+
+    //get all added ticket of a vendor, verify vendor using email [vendor only]
+    app.get(
+      "/added-tickets",
+      verifyJWT,
+      verifyRole("vendor"),
+      async (req, res) => {
+        const email = req.tokenEmail;
+        const result = await ticketsCollection
+          .find({ "vendor.email": email })
+          .toArray();
+        res.send(result);
+      }
+    );
+
+    //get all booking request data for a verified vendor [vendor only]
+    app.get(
+      "/requested-booking",
+      verifyJWT,
+      verifyRole("vendor"),
+      async (req, res) => {
+        const email = req.tokenEmail;
         const result = await bookedTicketsCollection
           .aggregate([
-            {
-              $match: { "customer.email": email },
-            },
+            { $match: { "vendor.email": email } },
             {
               $addFields: {
-                convertedTicketID: { $toObjectId: "$ticketID" },
+                convertedID: { $toObjectId: "$ticketID" },
               },
             },
             {
               $lookup: {
                 from: "Tickets",
-                localField: "convertedTicketID",
+                localField: "convertedID",
                 foreignField: "_id",
-                as: "ticketDetails",
+                as: "joinedTicket",
               },
             },
-            {
-              $unwind: "$ticketDetails",
-            },
+            { $unwind: "$joinedTicket" },
             {
               $project: {
-                convertedTicketID: 0,
-                vendor: 0,
-                customer: 0,
-                "ticketDetails.perks": 0,
-                "ticketDetails.quantity": 0,
-                "ticketDetails.vendor": 0,
-                "ticketDetails._id": 0,
+                _id: 1,
+                customer: 1,
+                vendor: 1,
+                status: 1,
+                quantity: 1,
+                ticketPrice: "$joinedTicket.price",
+                ticketTitle: "$joinedTicket.title",
               },
             },
           ])
           .toArray();
-
         res.send(result);
-      } catch (error) {
-        console.error("Aggregation Error:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to fetch booked tickets with details." });
       }
-    });
-
-    //get all payment data from database [customer only]
-    app.get("/transactions", verifyJWT, async (req, res) => {
-      try {
-        const email = req.tokenEmail;
-        const result = await paymentsCollection
-          .find({ "customer.email": email })
-          .project({
-            transactionId: 1,
-            title: 1,
-            amount: 1,
-            date: 1,
-          })
-          .toArray();
-
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Error fetching transactions", error });
-      }
-    });
-
-    //get all added ticket of a vendor, verify vendor using email [vendor only]
-    app.get("/added-tickets", verifyJWT, async (req, res) => {
-      const email = req.tokenEmail;
-      const result = await ticketsCollection
-        .find({ "vendor.email": email })
-        .toArray();
-      res.send(result);
-    });
-
-    //get all booking request data for a verified vendor [vendor only]
-    app.get("/requested-booking", verifyJWT, async (req, res) => {
-      const email = req.tokenEmail;
-      const result = await bookedTicketsCollection
-        .aggregate([
-          { $match: { "vendor.email": email } },
-          {
-            $addFields: {
-              convertedID: { $toObjectId: "$ticketID" },
-            },
-          },
-          {
-            $lookup: {
-              from: "Tickets",
-              localField: "convertedID",
-              foreignField: "_id",
-              as: "joinedTicket",
-            },
-          },
-          { $unwind: "$joinedTicket" },
-          {
-            $project: {
-              _id: 1,
-              customer: 1,
-              vendor: 1,
-              status: 1,
-              quantity: 1,
-              ticketPrice: "$joinedTicket.price",
-              ticketTitle: "$joinedTicket.title",
-            },
-          },
-        ])
-        .toArray();
-      res.send(result);
-    });
+    );
 
     // update the booked ticket status by a verified vendor [vendor only]
-    app.patch("/booking-status/:id", verifyJWT, async (req, res) => {
-      const id = req.params.id;
-      const { status } = req.body;
+    app.patch(
+      "/booking-status/:id",
+      verifyJWT,
+      verifyRole("vendor"),
+      async (req, res) => {
+        const id = req.params.id;
+        const { status } = req.body;
 
-      try {
-        const query = { _id: new ObjectId(id) };
-        const updateDoc = {
-          $set: {
-            status: status,
-          },
-        };
+        try {
+          const query = { _id: new ObjectId(id) };
+          const updateDoc = {
+            $set: {
+              status: status,
+            },
+          };
 
-        const result = await bookedTicketsCollection.updateOne(
-          query,
-          updateDoc
-        );
+          const result = await bookedTicketsCollection.updateOne(
+            query,
+            updateDoc
+          );
 
-        if (result.modifiedCount > 0) {
-          res.send(result);
-        } else {
-          res.status(404).send({ message: "Status update failed" });
+          if (result.modifiedCount > 0) {
+            res.send(result);
+          } else {
+            res.status(404).send({ message: "Status update failed" });
+          }
+        } catch (error) {
+          res.status(500).send({ message: "Internal Server Error" });
         }
-      } catch (error) {
-        res.status(500).send({ message: "Internal Server Error" });
       }
-    });
+    );
 
     // Update a ticket details [vendor only]
-    app.patch("/tickets/:id", verifyJWT, async (req, res) => {
-      try {
-        const id = req.params.id;
-        const updatedData = req.body;
-        const email = req.tokenEmail;
+    app.patch(
+      "/tickets/:id",
+      verifyJWT,
+      verifyRole("vendor"),
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const updatedData = req.body;
+          const email = req.tokenEmail;
 
-        const query = { _id: new ObjectId(id) };
-        const ticket = await ticketsCollection.findOne(query);
+          const query = { _id: new ObjectId(id) };
+          const ticket = await ticketsCollection.findOne(query);
 
-        if (!ticket) {
-          return res.status(404).send({ message: "Ticket not found!" });
+          if (!ticket) {
+            return res.status(404).send({ message: "Ticket not found!" });
+          }
+
+          if (ticket.vendor.email !== email) {
+            return res.status(403).send({
+              message: "You are not authorized to update this ticket!",
+            });
+          }
+
+          const updateDoc = {
+            $set: {
+              ...updatedData,
+              updatedAt: new Date(),
+            },
+          };
+
+          const result = await ticketsCollection.updateOne(query, updateDoc);
+          res.send(result);
+        } catch (error) {
+          console.error("Update Error:", error);
+          res.status(500).send({ message: "Internal server error" });
         }
-
-        if (ticket.vendor.email !== email) {
-          return res
-            .status(403)
-            .send({ message: "You are not authorized to update this ticket!" });
-        }
-
-        const updateDoc = {
-          $set: {
-            ...updatedData,
-            updatedAt: new Date(),
-          },
-        };
-
-        const result = await ticketsCollection.updateOne(query, updateDoc);
-        res.send(result);
-      } catch (error) {
-        console.error("Update Error:", error);
-        res.status(500).send({ message: "Internal server error" });
       }
-    });
+    );
 
     //delete a ticket [vendor only]
-    app.delete("/tickets/:id", verifyJWT, async (req, res) => {
-      try {
-        const id = req.params.id;
-        const email = req.tokenEmail;
+    app.delete(
+      "/tickets/:id",
+      verifyJWT,
+      verifyRole("vendor"),
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const email = req.tokenEmail;
 
-        const query = { _id: new ObjectId(id) };
+          const query = { _id: new ObjectId(id) };
 
-        if (ticket.vendor.email !== email) {
-          return res.status(403).send({
-            message: "Unauthorized! You can only delete your own tickets.",
-          });
+          if (ticket.vendor.email !== email) {
+            return res.status(403).send({
+              message: "Unauthorized! You can only delete your own tickets.",
+            });
+          }
+
+          const result = await ticketsCollection.deleteOne(query);
+          res.send(result);
+        } catch (error) {
+          console.error("Delete Error:", error);
+          res.status(500).send({ message: "Internal server error" });
         }
-
-        const result = await ticketsCollection.deleteOne(query);
-        res.send(result);
-      } catch (error) {
-        console.error("Delete Error:", error);
-        res.status(500).send({ message: "Internal server error" });
       }
-    });
+    );
 
     //get all Revenue data for a vendor [vendor only]
-    app.get("/total-revenue", verifyJWT, async (req, res) => {
-      try {
-        const email = req.tokenEmail;
+    app.get(
+      "/total-revenue",
+      verifyJWT,
+      verifyRole("vendor"),
+      async (req, res) => {
+        try {
+          const email = req.tokenEmail;
 
-        const paymentStats = await paymentsCollection
-          .aggregate([
-            {
-              $match: { "vendor.email": email },
-            },
-            {
-              $group: {
-                _id: null,
-                totalRevenue: { $sum: "$amount" },
-                totalSold: { $sum: "$quantity" },
+          const paymentStats = await paymentsCollection
+            .aggregate([
+              {
+                $match: { "vendor.email": email },
               },
-            },
-          ])
-          .toArray();
+              {
+                $group: {
+                  _id: null,
+                  totalRevenue: { $sum: "$amount" },
+                  totalSold: { $sum: "$quantity" },
+                },
+              },
+            ])
+            .toArray();
 
-        const stats =
-          paymentStats.length > 0
-            ? paymentStats[0]
-            : { totalRevenue: 0, totalSold: 0 };
+          const stats =
+            paymentStats.length > 0
+              ? paymentStats[0]
+              : { totalRevenue: 0, totalSold: 0 };
 
-        const totalTicketsCount = await ticketsCollection.countDocuments({
-          "vendor.email": email,
-        });
+          const totalTicketsCount = await ticketsCollection.countDocuments({
+            "vendor.email": email,
+          });
 
-        res.send({
-          revenue: stats.totalRevenue,
-          sold: stats.totalSold,
-          tickets: totalTicketsCount,
-        });
-      } catch (error) {
-        console.error("Revenue Error:", error);
-        res.status(500).send({ message: "Internal Server Error", error });
+          res.send({
+            revenue: stats.totalRevenue,
+            sold: stats.totalSold,
+            tickets: totalTicketsCount,
+          });
+        } catch (error) {
+          console.error("Revenue Error:", error);
+          res.status(500).send({ message: "Internal Server Error", error });
+        }
       }
-    });
+    );
 
     //Payment endPint
     app.post("/create-checkout-session", async (req, res) => {
