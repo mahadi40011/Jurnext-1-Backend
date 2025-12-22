@@ -211,30 +211,7 @@ async function run() {
     app.get("/approved-tickets", async (req, res) => {
       try {
         const result = await ticketsCollection
-          .aggregate([
-            {
-              $match: { status: "approved" },
-            },
-            {
-              $lookup: {
-                from: "Users",
-                localField: "vendor.email",
-                foreignField: "email",
-                as: "vendorDetails",
-              },
-            },
-            {
-              $unwind: "$vendorDetails",
-            },
-            {
-              $match: {
-                "vendorDetails.fraud": { $ne: true },
-              },
-            },
-            {
-              $project: { vendorDetails: 0 },
-            },
-          ])
+          .find({ status: "approved" })
           .toArray();
 
         res.send(result);
