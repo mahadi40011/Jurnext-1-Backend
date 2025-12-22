@@ -197,7 +197,7 @@ async function run() {
           advertise: true,
         });
 
-        if (advertisedCount >= 6) {
+        if (advertisedCount >= 6 && advertise === true) {
           return res.status(400).send({
             message: "Limit reached! You cannot advertise more than 6 tickets.",
           });
