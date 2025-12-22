@@ -187,9 +187,24 @@ async function run() {
 
     //send 1 data to database [Seller Only]
     app.post("/tickets", async (req, res) => {
-      const plantData = req.body;
-      const result = await ticketsCollection.insertOne(plantData);
-      res.send(result);
+      try {
+        const ticketData = req.body;
+        const email = ticketData.vendor?.email;
+
+        const user = await usersCollection.findOne({ email });
+
+        if (user && user.fraud === true) {
+          return res.send({
+            message: "You are marked as a fraud! You cannot add new tickets.",
+          });
+        }
+
+        const result = await ticketsCollection.insertOne(ticketData);
+        res.send(result);
+      } catch (error) {
+        console.error("Error adding ticket:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
     });
 
     //get all approved and non fraud ticket Data from Database [common access]
