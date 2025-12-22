@@ -442,6 +442,28 @@ async function run() {
       }
     });
 
+    //delete a ticket [vendor only]
+    app.delete("/tickets/:id", verifyJWT, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const email = req.tokenEmail;
+
+        const query = { _id: new ObjectId(id) };
+
+        if (ticket.vendor.email !== email) {
+          return res.status(403).send({
+            message: "Unauthorized! You can only delete your own tickets.",
+          });
+        }
+
+        const result = await ticketsCollection.deleteOne(query);
+        res.send(result);
+      } catch (error) {
+        console.error("Delete Error:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
     //get all Revenue data for a vendor [vendor only]
     app.get("/total-revenue", verifyJWT, async (req, res) => {
       try {
