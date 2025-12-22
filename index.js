@@ -108,7 +108,10 @@ async function run() {
 
     //get all users from database [Admin only]
     app.get("/users", verifyJWT, verifyRole("admin"), async (req, res) => {
-      const result = await usersCollection.find().toArray();
+      const adminEmail = req.tokenEmail;
+      const result = await usersCollection
+        .find({ email: { $ne: adminEmail } })
+        .toArray();
       res.send(result);
     });
 
