@@ -192,12 +192,40 @@ async function run() {
       res.send(result);
     });
 
-    //get all approved ticket Data from Database [common access]
+    //get all approved and non fraud ticket Data from Database [common access]
     app.get("/approved-tickets", async (req, res) => {
-      const result = await ticketsCollection
-        .find({ status: "approved" })
-        .toArray();
-      res.send(result);
+      try {
+        const result = await ticketsCollection
+          .aggregate([
+            {
+              $match: { status: "approved" },
+            },
+            {
+              $lookup: {
+                from: "Users",
+                localField: "vendor.email",
+                foreignField: "email",
+                as: "vendorDetails",
+              },
+            },
+            {
+              $unwind: "$vendorDetails",
+            },
+            {
+              $match: {
+                "vendorDetails.fraud": { $ne: true },
+              },
+            },
+            {
+              $project: { vendorDetails: 0 },
+            },
+          ])
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching tickets", error });
+      }
     });
 
     //get all ticket Data from Database [Admin only]
