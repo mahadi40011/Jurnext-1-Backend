@@ -407,6 +407,41 @@ async function run() {
       }
     });
 
+    // Update a ticket details [vendor only]
+    app.patch("/tickets/:id", verifyJWT, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updatedData = req.body;
+        const email = req.tokenEmail;
+
+        const query = { _id: new ObjectId(id) };
+        const ticket = await ticketsCollection.findOne(query);
+
+        if (!ticket) {
+          return res.status(404).send({ message: "Ticket not found!" });
+        }
+
+        if (ticket.vendor.email !== email) {
+          return res
+            .status(403)
+            .send({ message: "You are not authorized to update this ticket!" });
+        }
+
+        const updateDoc = {
+          $set: {
+            ...updatedData,
+            updatedAt: new Date(),
+          },
+        };
+
+        const result = await ticketsCollection.updateOne(query, updateDoc);
+        res.send(result);
+      } catch (error) {
+        console.error("Update Error:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
     //get all Revenue data for a vendor [vendor only]
     app.get("/total-revenue", verifyJWT, async (req, res) => {
       try {
